@@ -1,12 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import {
-  DownloadFormat,
-  VideoQuality,
-  AudioQuality,
-  convertYouTubeVideo,
-} from "@/services/youtube";
+import { DownloadFormat, VideoQuality, AudioQuality, DownloadProgress } from "@/types";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,10 +17,10 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Icons } from "@/components/icons";
 
-const YTubeRipper = () => {
+export default function YTubeRipper() {
   const [youtubeURL, setYoutubeURL] = useState("");
   const [format, setFormat] = useState<DownloadFormat>("mp3");
-  const [videoQuality, setVideoQuality] = useState<VideoQuality | null>(null);
+  const [videoQuality, setVideoQuality] = useState<VideoQuality>("720p");
   const [audioQuality, setAudioQuality] = useState<AudioQuality | null>(null);
   const [downloadURL, setDownloadURL] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState(0);
@@ -37,18 +33,33 @@ const YTubeRipper = () => {
     setDownloadProgress(0);
     setDownloadURL(null);
 
+    const progressCallback = (progress: DownloadProgress) => {
+      setDownloadProgress(progress.percentage);
+    };
+
     try {
-      const url = await convertYouTubeVideo(
-        youtubeURL,
-        format,
-        videoQuality ?? undefined,
-        audioQuality ?? undefined,
-        (progress) => {
-          setDownloadProgress(progress.percentage);
-        }
-      );
-      setDownloadURL(url);
-    } catch (error: any) {
+      const response = await fetch("/api/youtube", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: youtubeURL,
+          format: format,
+          videoQuality: videoQuality,
+          audioQuality: audioQuality,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Download failed");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setDownloadURL(url);      
+    } catch (error:any) {
       console.error("Download failed:", error);
       setDownloadError(error.message || "An error occurred during download.");
     } finally {
@@ -166,5 +177,3 @@ const YTubeRipper = () => {
     </div>
   );
 };
-
-export default YTubeRipper;
